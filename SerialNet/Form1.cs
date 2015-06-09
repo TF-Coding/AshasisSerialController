@@ -11,6 +11,7 @@ using System.Threading;
 using System.Net.Sockets;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.IO;
 
 namespace SerialNet
 {
@@ -84,6 +85,8 @@ namespace SerialNet
         SerialPort sp;
         TcpListener listener;
         Thread tcpAccepter;
+
+        Thread reader;
         List<TcpClient> clients = new List<TcpClient>();
         Thread spRead;
 
@@ -161,11 +164,39 @@ namespace SerialNet
                         {
                             TcpClient c = listener.AcceptTcpClient();
                             clients.Add(c);
+                            Thread t = new Thread(new ThreadStart(
+                                () =>
+                                {
+                                    String buffer = "";
+                                    try
+                                    {
+                                        while (true)
+                                        {
+                                            Stream s = c.GetStream();
+                                            using (MemoryStream ms = new MemoryStream())
+                                            {
+                                                int read = s.ReadByte();
+                                                if (read == 10)
+                                                {
+                                                    Console.WriteLine(buffer.Trim());
+                                                    buffer = "";
+                                                }
+                                                else
+                                                {
+                                                    buffer += (char)read;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch (IOException) { }
+                                }));
+                            t.Start();
                         }
                     }
                     catch (ThreadInterruptedException) { }
                     catch (ThreadAbortException) { }
                 }));
+
             spRead.Start();
             tcpAccepter.Start();
 
